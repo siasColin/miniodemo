@@ -1,0 +1,33 @@
+server:
+  port: 8090
+  shutdown: graceful
+
+spring:
+  servlet:
+    #文件上传相关设置
+    multipart:
+      # 是否支持批量上传   (默认值 true)
+      enabled: true
+      # 上传文件的临时目录 （linux的默认临时目录定时会被删除会导致上传失败，尽量指定临时目录）
+      location: D:/temp
+      # 上传文件最大为 1M （默认值 1M 根据自身业务自行控制即可）
+      max-file-size: 200MB
+      # 设置总上传的数据大小 10M（默认值10M 根据自身业务自行控制即可）
+      max-request-size: 1000MB
+      # 文件大小阈值，当大于这个阈值时将写入到磁盘，否则存在内存中，（默认值0 一般情况下不用特意修改）
+      file-size-threshold: 0
+
+management:
+  endpoint:
+    shutdown:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: shutdown
+
+minio:
+  endpoint: http://192.168.0.162:9090
+  accessKey: admin
+  secretKey: admin123456
+  bucketName: colin
