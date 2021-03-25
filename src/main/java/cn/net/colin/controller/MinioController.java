@@ -52,8 +52,8 @@ public class MinioController {
             @ApiImplicitParam(name="sourceFilePath",value="待上传文件源路径",required=true,paramType="query",dataType="String")
     })
     public ResultInfo uploadObject(String targetFileName,String sourceFilePath) throws IOException {
-        String fileurl = minioClientUtils.uploadObject(targetFileName,sourceFilePath);
-        return ResultInfo.ofData(ResultCode.SUCCESS,fileurl);
+        Map<String,Object> resultMap = minioClientUtils.uploadObject(targetFileName,sourceFilePath);
+        return ResultInfo.ofData(ResultCode.SUCCESS,resultMap);
     }
 
     @PostMapping("/putObject")
@@ -62,11 +62,14 @@ public class MinioController {
     @ApiOperation(value = "通过InputStream上传对象")
     @ApiImplicitParams({
             @ApiImplicitParam(name = "file",value = "文件上传",paramType = "formData",required = true,dataType = "file"),
-            @ApiImplicitParam(name="targetFileName",value="上传至minio服务器上的文件名",required=true,paramType="query",dataType="String")
+            @ApiImplicitParam(name="targetFileName",value="上传至minio服务器上的文件名",required=false,paramType="query",dataType="String")
     })
     public ResultInfo putObject(@RequestParam("file") MultipartFile file,String targetFileName) throws IOException {
-        String fileurl = minioClientUtils.putObject(targetFileName,file.getInputStream(),file.getContentType());
-        return ResultInfo.ofData(ResultCode.SUCCESS,fileurl);
+        if(targetFileName == null || (targetFileName != null && targetFileName.trim().equals(""))){
+            targetFileName = file.getOriginalFilename();
+        }
+        Map<String,Object> resultMap = minioClientUtils.putObject(targetFileName,file.getInputStream(),file.getContentType());
+        return ResultInfo.ofData(ResultCode.SUCCESS,resultMap);
     }
 
     @GetMapping("/downloadFile")
@@ -145,8 +148,27 @@ public class MinioController {
         return ResultInfo.ofData(ResultCode.SUCCESS,resultMap);
     }
 
-    @GetMapping("/listObjects")
+    @PostMapping("/removeObject")
     @ApiOperationSupport(order = 5)
+    @ApiOperation(value = "文件删除")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name="targetFileName",value="文件名",required=true,paramType="query",dataType="String")
+    })
+    @ResponseBody
+    public ResultInfo removeObject(String targetFileName){
+        boolean objectExists = false;
+        Map<String,Object> resultMap = new HashMap<String,Object>();
+        try {
+            objectExists = minioClientUtils.removeObject(targetFileName);
+            resultMap.put("exist",objectExists);
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        return ResultInfo.ofData(ResultCode.SUCCESS,resultMap);
+    }
+
+    @GetMapping("/listObjects")
+    @ApiOperationSupport(order = 6)
     @ApiOperation(value = "获取存储桶中的对象集合")
     @ApiImplicitParams({
             @ApiImplicitParam(name="prefix",value="对象名称的前缀",required=false,paramType="query",dataType="String"),
@@ -160,11 +182,13 @@ public class MinioController {
             Iterable<Result<Item>> results = minioClientUtils.listObjects(prefix,startAfter);
             for (Result<Item> result : results) {
                 Item item = result.get();
-                Map<String,Object> map = new HashMap<String,Object>();
-                map.put("lastModified",item.lastModified().withZoneSameInstant(ZoneId.systemDefault()).format(formatter));
-                map.put("size",item.size());
-                map.put("objectName",item.objectName());
-                dataList.add(map);
+                if(!item.isDir()){
+                    Map<String,Object> map = new HashMap<String,Object>();
+                    map.put("lastModified",item.lastModified().withZoneSameInstant(ZoneId.systemDefault()).format(formatter));
+                    map.put("size",item.size());
+                    map.put("objectName",item.objectName());
+                    dataList.add(map);
+                }
             }
             return ResultInfo.ofDataAndTotal(ResultCode.SUCCESS,dataList,dataList.size());
         }catch (Exception e){

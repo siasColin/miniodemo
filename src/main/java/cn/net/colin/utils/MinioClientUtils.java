@@ -11,6 +11,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @Package: cn.net.colin.utils
@@ -25,26 +29,37 @@ public class MinioClientUtils {
     @Resource
     private MinioProperties minioProperties;
 
+    private String prefix = "miniodemo/";//文件前缀，建议设置为项目名
+    private int dateDir = 1;//前缀是否自动追加日期；1追加，0不追加
+
     /**
      * 通过完整路径上传对象
      * @param targetFileName
      * @param sourceFilePath
      * @return
      */
-    public String uploadObject(String targetFileName,String sourceFilePath){
-        String fileurl = null;
+    public Map<String,Object> uploadObject(String targetFileName, String sourceFilePath){
+        Map<String,Object> resultMap = new HashMap<String,Object>();
         try {
+            if(dateDir == 1){
+                SimpleDateFormat format = new SimpleDateFormat("yyyyMMdd");
+                targetFileName = prefix+format.format(new Date())+"/"+targetFileName;
+            }else{
+                targetFileName = prefix+targetFileName;
+            }
             minioClient.uploadObject(
                     UploadObjectArgs.builder()
                             .bucket(minioProperties.getBucketName())
                             .object(targetFileName)
                             .filename(sourceFilePath)
                             .build());
-            fileurl = minioProperties.getEndpoint()+"/"+minioProperties.getBucketName()+"/"+targetFileName;
+            String fileurl = minioProperties.getEndpoint()+"/"+minioProperties.getBucketName()+"/"+targetFileName;
+            resultMap.put("fileurl",fileurl);
+            resultMap.put("filename",targetFileName);
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return fileurl;
+        return resultMap;
     }
 
     /**
@@ -54,8 +69,15 @@ public class MinioClientUtils {
      * @param contentType
      * @return
      */
-    public String putObject(String targetFileName, InputStream inputStream,String contentType){
+    public Map<String,Object> putObject(String targetFileName, InputStream inputStream,String contentType){
+        Map<String,Object> resultMap = new HashMap<String,Object>();
         try{
+            if(dateDir == 1){
+                SimpleDateFormat format = new SimpleDateFormat("yyyyMMdd");
+                targetFileName = prefix+format.format(new Date())+"/"+targetFileName;
+            }else{
+                targetFileName = prefix+targetFileName;
+            }
             if(contentType == null ||(contentType != null && contentType.trim().equals(""))){
                 contentType = "application/octet-stream";
             }
@@ -65,6 +87,8 @@ public class MinioClientUtils {
                     .stream(inputStream,inputStream.available(),-1)
                     .contentType(contentType)
                     .build());
+            resultMap.put("fileurl",minioProperties.getEndpoint()+"/"+minioProperties.getBucketName()+"/"+targetFileName);
+            resultMap.put("filename",targetFileName);
         }catch (Exception e){
             e.printStackTrace();
             return null;
@@ -78,7 +102,7 @@ public class MinioClientUtils {
                 }
             }
         }
-        return minioProperties.getEndpoint()+"/"+minioProperties.getBucketName()+"/"+targetFileName;
+        return resultMap;
     }
 
     /**
@@ -118,6 +142,23 @@ public class MinioClientUtils {
     }
 
     /**
+     * 删除一个对象
+     * @param targetFileName
+     * @return
+     */
+    public boolean removeObject(String targetFileName){
+        try{
+            minioClient.removeObject(
+                    RemoveObjectArgs.builder()
+                            .bucket(minioProperties.getBucketName())
+                            .object(targetFileName).build());
+            return true;
+        }catch (Exception e){
+            return false;
+        }
+    }
+
+    /**
      * 获取存储桶中的对象集合
      * @param prefix 对象名称的前缀
      * @param startAfter 从某个对象开始检索
@@ -133,7 +174,7 @@ public class MinioClientUtils {
             if(startAfter != null && !startAfter.trim().equals("")){
                 builder.startAfter(startAfter);
             }
-            return minioClient.listObjects(builder.build());
+            return minioClient.listObjects(builder.recursive(true).build());
         }catch (Exception e){
             e.printStackTrace();
             return null;
